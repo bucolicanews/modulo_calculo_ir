@@ -1,0 +1,100 @@
+{
+  "module_id": "jota_irpf_2026",
+  "version": "2.0.0",
+  "name": "Simulador IRPF 2026",
+  "description": "Simulação do IRPF 2026 com a nova tabela progressiva, redutores da Lei 15.270/2025 (isenção até R$5.000, redução até R$7.350) e INSS progressivo. Tabelas editáveis em tempo real.",
+  "icon": "📊",
+  "author": "JOTA Empresas",
+  "dependencies": [],
+
+  "skills": [
+    {
+      "name": "irpf_calcular_mensal",
+      "description": "Calcula o IR mensal retido na fonte (IRRF) pela nova tabela 2026 com redutor da Lei 15.270/2025. Isenção total para rendas até R$5.000. Retorna IR bruto, redutor aplicado, IR final, INSS, base de cálculo, alíquota efetiva e salário líquido.",
+      "executionType": "local_js",
+      "parameters": {
+        "type": "object",
+        "required": ["salarioBruto"],
+        "properties": {
+          "salarioBruto":      { "type": "number", "description": "Salário bruto mensal em R$" },
+          "dependentes":       { "type": "number", "description": "Número de dependentes (padrão 0)" },
+          "outrasDeducoes":    { "type": "number", "description": "Outras deduções legais em R$ (padrão 0)" },
+          "tipoDeclaracao":    { "type": "string", "enum": ["simplificada","completa"], "description": "Tipo de declaração (padrão: simplificada)" }
+        }
+      },
+      "jsCode": "const s=args.salarioBruto,dep=args.dependentes||0,outras=args.outrasDeducoes||0,tipo=args.tipoDeclaracao||'simplificada';const fi=[{l:1518,a:7.5},{l:2793.88,a:9},{l:4190.83,a:12},{l:8157.41,a:14}];let inss=0,p=0;for(const f of fi){const t=Math.min(f.l,Math.min(s,8157.41))-p;if(t>0)inss+=t*(f.a/100);p=f.l;if(s<=f.l)break;}const base=tipo==='simplificada'?Math.max(0,s-inss-607.20):Math.max(0,s-inss-(dep*189.59)-outras);const fp=[{l:2428.80,a:0,d:0},{l:2826.65,a:7.5,d:182.16},{l:3751.05,a:15,d:394.16},{l:4664.68,a:22.5,d:675.49},{l:9e15,a:27.5,d:908.73}];let irBruto=0;for(const f of fp){if(base<=f.l){irBruto=Math.max(0,base*(f.a/100)-f.d);break;}}let redutor=0;if(s<=5000)redutor=Math.min(312.89,irBruto);else if(s<=7350){const r=978.62-0.133145*s;redutor=Math.max(0,Math.min(r,irBruto));}const irFinal=Math.max(0,irBruto-redutor);return{inss:+inss.toFixed(2),baseCalculo:+base.toFixed(2),irBruto:+irBruto.toFixed(2),redutor:+redutor.toFixed(2),irFinal:+irFinal.toFixed(2),aliquotaEfetiva:s>0?+((irFinal/s)*100).toFixed(2):0,salarioLiquido:+(s-inss-irFinal).toFixed(2),isento:irFinal===0};"
+    },
+    {
+      "name": "irpf_faixa_tributaria",
+      "description": "Retorna a faixa e alíquota marginal em que a base de cálculo se enquadra na tabela IRPF 2026 (nova tabela com isenção até R$2.428,80).",
+      "executionType": "local_js",
+      "parameters": {
+        "type": "object",
+        "required": ["baseCalculo"],
+        "properties": {
+          "baseCalculo": { "type": "number", "description": "Base de cálculo após deduções (R$)" }
+        }
+      },
+      "jsCode": "const b=args.baseCalculo;const fp=[{l:2428.80,a:0,label:'Isento'},{l:2826.65,a:7.5,label:'7,5%'},{l:3751.05,a:15,label:'15%'},{l:4664.68,a:22.5,label:'22,5%'},{l:9e15,a:27.5,label:'27,5%'}];const f=fp.find(x=>b<=x.l)||fp[fp.length-1];return{faixa:f.label,aliquotaMarginal:f.a,isento:f.a===0};"
+    },
+    {
+      "name": "irpf_comparar_declaracoes",
+      "description": "Compara declaração simplificada vs completa e recomenda a mais vantajosa, informando a economia em R$.",
+      "executionType": "local_js",
+      "parameters": {
+        "type": "object",
+        "required": ["salarioBruto"],
+        "properties": {
+          "salarioBruto":   { "type": "number" },
+          "dependentes":    { "type": "number" },
+          "outrasDeducoes": { "type": "number" }
+        }
+      },
+      "jsCode": "const s=args.salarioBruto,dep=args.dependentes||0,out=args.outrasDeducoes||0;const fi=[{l:1518,a:7.5},{l:2793.88,a:9},{l:4190.83,a:12},{l:8157.41,a:14}];let inss=0,p=0;for(const f of fi){const t=Math.min(f.l,Math.min(s,8157.41))-p;if(t>0)inss+=t*(f.a/100);p=f.l;if(s<=f.l)break;}const fp=[{l:2428.80,a:0,d:0},{l:2826.65,a:7.5,d:182.16},{l:3751.05,a:15,d:394.16},{l:4664.68,a:22.5,d:675.49},{l:9e15,a:27.5,d:908.73}];function ir(base){for(const f of fp){if(base<=f.l)return Math.max(0,base*(f.a/100)-f.d);}return 0;}function red(s,irb){if(s<=5000)return Math.min(312.89,irb);if(s<=7350){const r=978.62-0.133145*s;return Math.max(0,Math.min(r,irb));}return 0;}const bS=Math.max(0,s-inss-607.20),bC=Math.max(0,s-inss-(dep*189.59)-out);const irS=Math.max(0,ir(bS)-red(s,ir(bS))),irC=Math.max(0,ir(bC)-red(s,ir(bC)));const rec=irC<=irS?'completa':'simplificada';return{irSimplificada:+irS.toFixed(2),irCompleta:+irC.toFixed(2),recomendacao:rec,economia:+Math.abs(irS-irC).toFixed(2)};"
+    },
+    {
+      "name": "irpf_projecao_anual",
+      "description": "Projeta o IR anual estimado com as novas tabelas 2026, incluindo redutores anuais (isenção até R$60.000/ano, redução até R$88.200/ano).",
+      "executionType": "local_js",
+      "parameters": {
+        "type": "object",
+        "required": ["salarioBruto"],
+        "properties": {
+          "salarioBruto":   { "type": "number" },
+          "dependentes":    { "type": "number" },
+          "outrasDeducoes": { "type": "number" },
+          "tipoDeclaracao": { "type": "string", "enum": ["simplificada","completa"] }
+        }
+      },
+      "jsCode": "const s=args.salarioBruto,dep=args.dependentes||0,out=args.outrasDeducoes||0,tipo=args.tipoDeclaracao||'simplificada';const fi=[{l:1518,a:7.5},{l:2793.88,a:9},{l:4190.83,a:12},{l:8157.41,a:14}];let inss=0,p=0;for(const f of fi){const t=Math.min(f.l,Math.min(s,8157.41))-p;if(t>0)inss+=t*(f.a/100);p=f.l;if(s<=f.l)break;}const fa=[{l:28467.20,a:0,d:0},{l:33919.80,a:7.5,d:2135.04},{l:45012.60,a:15,d:4679.03},{l:55976.16,a:22.5,d:8054.97},{l:9e15,a:27.5,d:10853.78}];const rA=s*12,iA=inss*12;const dA=tipo==='simplificada'?Math.min(rA*0.20,17640):(dep*189.59+out)*12;const bA=Math.max(0,rA-iA-dA);let irBA=0;for(const f of fa){if(bA<=f.l){irBA=Math.max(0,bA*(f.a/100)-f.d);break;}}let redA=0;if(rA<=60000)redA=Math.min(2694.15,irBA);else if(rA<=88200){const r=8429.73-0.095575*rA;redA=Math.max(0,Math.min(r,irBA));}const irAnual=Math.max(0,irBA-redA);return{rendaAnual:+rA.toFixed(2),baseAnual:+bA.toFixed(2),irBrutoAnual:+irBA.toFixed(2),redutorAnual:+redA.toFixed(2),irAnual:+irAnual.toFixed(2),aliquotaAnual:rA>0?+((irAnual/rA)*100).toFixed(2):0,isento:irAnual===0};"
+    }
+  ],
+
+  "prompts": [
+    {
+      "title": "Consultor Tributário IRPF 2026",
+      "role": "Especialista em Imposto de Renda — Lei 15.270/2025",
+      "content": "Você é um consultor tributário especializado no IRPF 2026. Conhece a fundo a Lei 15.270/2025: isenção total para rendas até R$5.000/mês, redução parcial até R$7.350/mês e as novas tabelas progressivas. Use as skills #irpf_calcular_mensal e #irpf_comparar_declaracoes para calcular e comparar cenários. Ao apresentar resultados, explique de forma clara: o que é o redutor, como funciona a isenção, e quais deduções legais o contribuinte pode usar. Sempre oriente o usuário a confirmar com um contador para a declaração oficial."
+    },
+    {
+      "title": "Planejador de Salário Líquido",
+      "role": "Analista de Folha de Pagamento",
+      "content": "Você ajuda profissionais de RH e colaboradores a entender exatamente quanto fica no bolso após INSS e IR. Use #irpf_calcular_mensal para detalhar cada desconto no formato de um holerite simplificado. Use #irpf_faixa_tributaria para informar a alíquota marginal. Destaque quando o contribuinte se beneficia da isenção ou redução da Lei 15.270 e sugira benefícios (VR, VA, plano de saúde) que possam reduzir a base de cálculo."
+    },
+    {
+      "title": "Analista de Impacto Anual",
+      "role": "Planejador Tributário",
+      "content": "Você projeta o impacto anual do IR com as novas regras de 2026. Use #irpf_projecao_anual para estimar o IR a pagar na DIRPF 2027. Explique o redutor anual (isenção até R$60.000/ano, redução até R$88.200/ano) e o que o contribuinte deve reservar mensalmente para possível complementação. Se a renda for superior a R$600.000/ano, mencione a possível incidência do IRPFM (Imposto Mínimo para alta renda)."
+    }
+  ],
+
+  "agents": [
+    {
+      "nome": "Auditor Fiscal IRPF 2026",
+      "systemPrompt": "Você é um agente especializado em auditoria tributária do IRPF 2026. Seu fluxo: 1) Receba os dados de renda do usuário. 2) Calcule o IR mensal com #irpf_calcular_mensal. 3) Compare formas de declaração com #irpf_comparar_declaracoes. 4) Projete o impacto anual com #irpf_projecao_anual. 5) Identifique se o contribuinte tem direito à isenção ou redutor da Lei 15.270/2025. 6) Gere um relatório completo com: IR mensal atual, IR anual estimado, recomendação de tipo de declaração e oportunidades de economia fiscal. Cite os valores exatos e a legislação aplicável.",
+      "order": 1,
+      "useN8n": false,
+      "n8nResponseUrl": ""
+    }
+  ]
+}
